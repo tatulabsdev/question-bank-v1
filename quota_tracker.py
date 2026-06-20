@@ -59,7 +59,7 @@ def get_current_count(topic_id: str, level: int) -> int:
         return -1
 
 
-def build_today_jobs(questions_per_job: int = 30, max_jobs: int = None) -> list:
+def build_today_jobs(questions_per_job: int = 15, max_jobs: int = None) -> list:
     """Returns a list of (topic_id, level, count_to_generate) tuples,
     crowded tier first, skipping topic+level cells that already meet
     their tier floor. `max_jobs` caps the list length (use this to keep

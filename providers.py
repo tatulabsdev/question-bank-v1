@@ -48,7 +48,7 @@ def call_cerebras(prompt, model=None):
             "https://api.cerebras.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                  "temperature": 0.7, "max_tokens": 4000},
+                  "temperature": 0.7, "max_tokens": 8000},
             timeout=REQUEST_TIMEOUT,
         )
         return _handle_openai_style_response(r)
@@ -66,7 +66,7 @@ def call_groq(prompt, model=None):
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                  "temperature": 0.7, "max_tokens": 4000},
+                  "temperature": 0.7, "max_tokens": 8000},
             timeout=REQUEST_TIMEOUT,
         )
         return _handle_openai_style_response(r)
@@ -109,7 +109,7 @@ def call_openrouter(prompt, model=None):
             "https://openrouter.ai/api/v1/chat/completions",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                  "temperature": 0.7, "max_tokens": 4000},
+                  "temperature": 0.7, "max_tokens": 8000},
             timeout=REQUEST_TIMEOUT,
         )
         return _handle_openai_style_response(r)
@@ -127,7 +127,7 @@ def call_mistral(prompt, model=None):
             "https://api.mistral.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                  "temperature": 0.7, "max_tokens": 4000},
+                  "temperature": 0.7, "max_tokens": 8000},
             timeout=REQUEST_TIMEOUT,
         )
         return _handle_openai_style_response(r)

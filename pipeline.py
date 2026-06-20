@@ -478,7 +478,7 @@ def process_job(topic_id: str, level: int, count: int, dry_run: bool = False) ->
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-jobs", type=int, default=None, help="limit number of jobs this run (use to fit a GitHub Actions time window)")
-    parser.add_argument("--questions-per-job", type=int, default=30)
+    parser.add_argument("--questions-per-job", type=int, default=15)
     parser.add_argument("--dry-run", action="store_true", help="generate + verify but skip the Supabase push")
     parser.add_argument("--report", action="store_true", help="print quota progress and exit, no generation")
     args = parser.parse_args()
