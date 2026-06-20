@@ -1,0 +1,54 @@
+name: TryIT Daily Question Generation
+
+# Runs unattended, no laptop or Codespace needed. Public repo = unlimited
+# free Actions minutes. Split into multiple chunks across the day so no
+# single job risks hitting the 6-hour GitHub Actions job limit, and so a
+# rate-limited provider mid-run doesn't stall the whole day's output.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"    # ~7:30 AM IST
+    - cron: "0 8 * * *"    # ~1:30 PM IST
+    - cron: "0 14 * * *"   # ~7:30 PM IST
+  workflow_dispatch:        # lets you trigger a run manually from the Actions tab
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run generation pipeline
+        env:
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python pipeline.py --max-jobs 60 --questions-per-job 30
+
+      - name: Upload generated JSON batches as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: question-batches-${{ github.run_id }}
+          path: output/*.json
+          retention-days: 14
+
+      - name: Upload pending-review queue (if any)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pending-review-${{ github.run_id }}
+          path: output/pending_review.jsonl
+          retention-days: 30
+          if-no-files-found: ignore
