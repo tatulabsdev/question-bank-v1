@@ -15,6 +15,8 @@ import os
 import sys
 import requests
 
+from config import PROVIDER_MODELS
+
 REQUEST_TIMEOUT = 20
 
 
@@ -47,22 +49,22 @@ def _check_openai_style(name, url, key, model, headers_extra=None):
 
 def check_cerebras():
     return _check_openai_style("Cerebras", "https://api.cerebras.ai/v1/chat/completions",
-                                _env("CEREBRAS_API_KEY"), "llama-3.3-70b")
+                                _env("CEREBRAS_API_KEY"), PROVIDER_MODELS["cerebras"])
 
 
 def check_groq():
     return _check_openai_style("Groq", "https://api.groq.com/openai/v1/chat/completions",
-                                _env("GROQ_API_KEY"), "llama-3.1-8b-instant")
+                                _env("GROQ_API_KEY"), PROVIDER_MODELS["groq_fast"])
 
 
 def check_openrouter():
     return _check_openai_style("OpenRouter", "https://openrouter.ai/api/v1/chat/completions",
-                                _env("OPENROUTER_API_KEY"), "meta-llama/llama-3.3-70b-instruct:free")
+                                _env("OPENROUTER_API_KEY"), PROVIDER_MODELS["openrouter"])
 
 
 def check_mistral():
     return _check_openai_style("Mistral", "https://api.mistral.ai/v1/chat/completions",
-                                _env("MISTRAL_API_KEY"), "mistral-small-latest")
+                                _env("MISTRAL_API_KEY"), PROVIDER_MODELS["mistral"])
 
 
 def check_gemini():
@@ -71,7 +73,7 @@ def check_gemini():
         return "Gemini", "NOT SET", "no key in environment"
     try:
         r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/{PROVIDER_MODELS['gemini']}:generateContent?key={key}",
             headers={"Content-Type": "application/json"},
             json={"contents": [{"parts": [{"text": "Say OK"}]}]},
             timeout=REQUEST_TIMEOUT,
