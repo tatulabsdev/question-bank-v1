@@ -37,6 +37,7 @@ from content_rules import (
     PROFANITY_TRIPWIRE_EN,
 )
 from diagrams import diagram_instruction_for, validate_diagram
+from svg_sanitizer import sanitize_question_svgs
 import geometry_engine
 from providers import (
     call_with_failover, GENERATION_CHAIN, VERIFICATION_CHAIN_1,
@@ -430,11 +431,12 @@ def process_job(topic_id: str, level: int, count: int, dry_run: bool = False) ->
     questions = filter_duplicates(questions, text_key="question")
 
     if topic.get("is_visual") and diagram_kind:
+        questions = [sanitize_question_svgs(q, diagram_kind) for q in questions]
         before = len(questions)
         questions = [q for q in questions if validate_diagram(q, diagram_kind)]
         dropped = before - len(questions)
         if dropped:
-            print(f"   diagram gate dropped {dropped}/{before} (missing or geometrically inconsistent)")
+            print(f"   diagram gate dropped {dropped}/{before} (missing, unsafe, or geometrically inconsistent)")
 
     verified_records = []
     for q in questions:
