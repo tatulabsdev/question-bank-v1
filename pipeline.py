@@ -484,14 +484,26 @@ def main():
     print("=" * 60)
 
     totals = {"generated": 0, "verified": 0, "saved": 0}
+    failed_jobs = []
     for topic_id, level, count in jobs:
-        result = process_job(topic_id, level, count, dry_run=args.dry_run)
+        try:
+            result = process_job(topic_id, level, count, dry_run=args.dry_run)
+        except Exception as e:
+            # One job's unexpected failure must not cost the other 59 jobs
+            # in an unattended 3x/day run — log it clearly and keep going.
+            print(f"   !! UNEXPECTED ERROR on {topic_id} L{level}: {type(e).__name__}: {e}")
+            failed_jobs.append((topic_id, level, str(e)))
+            continue
         for k in totals:
             totals[k] += result[k]
         time.sleep(1)
 
     print("\n" + "=" * 60)
     print(f"DONE. generated={totals['generated']} verified={totals['verified']} saved={totals['saved']}")
+    if failed_jobs:
+        print(f"WARNING: {len(failed_jobs)} job(s) hit unexpected errors and were skipped:")
+        for topic_id, level, err in failed_jobs:
+            print(f"  - {topic_id} L{level}: {err}")
     print("=" * 60)
 
 

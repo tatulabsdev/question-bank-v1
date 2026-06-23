@@ -26,6 +26,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Health check (fail fast if every provider is broken)
+        env:
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python healthcheck.py
+
       - name: Run generation pipeline
         env:
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
@@ -35,7 +46,7 @@ jobs:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python pipeline.py --max-jobs 60 --questions-per-job 30
+        run: python pipeline.py --max-jobs 60 --questions-per-job 15
 
       - name: Upload generated JSON batches as a build artifact
         uses: actions/upload-artifact@v4
