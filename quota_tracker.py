@@ -13,7 +13,7 @@ from config import levels_from_difficulty_range
 from supabase_data import fetch_topics
 
 
-def build_today_jobs(questions_per_job: int = 15, max_jobs: int = None) -> list:
+def build_today_jobs(questions_per_job: int = 10, max_jobs: int = None) -> list:
     """Returns a list of (topic_id, level, count_to_generate) tuples,
     highest coverage_score first, skipping any topic+level cell that's
     already met its question_target."""

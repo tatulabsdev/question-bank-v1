@@ -468,7 +468,7 @@ def process_job(topic_id: str, level: int, count: int, dry_run: bool = False) ->
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-jobs", type=int, default=None)
-    parser.add_argument("--questions-per-job", type=int, default=15)
+    parser.add_argument("--questions-per-job", type=int, default=10)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--report", action="store_true")
     args = parser.parse_args()
