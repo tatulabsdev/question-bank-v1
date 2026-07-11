@@ -80,9 +80,15 @@ background), drawing the EXACT figure described in the question:
 Also add "diagram_meta": {"shape": "triangle"|"circle"|"rectangle"|"other",
 "given_values": {"sides": [num,...], "angles": [num,...]}} listing the
 exact numeric values from the question, so the figure can be checked
-against them automatically.
+against them automatically. CRITICAL: every value in diagram_meta must
+be valid JSON — write a computed decimal number (0.75), never an
+unevaluated math expression as a bare value (NOT 3/4, NOT sqrt(2)) since
+that breaks JSON parsing entirely. Do NOT invent additional keys beyond
+"sides" and "angles" — if the question's given values don't fit that
+shape (e.g. a ratio-based problem), still convert everything to plain
+decimal numbers under "sides"/"angles" rather than adding a new
+structure the parser doesn't expect.
 """
-
 NONVERBAL_MIRROR_SVG_INSTRUCTION = """
 This is a mirror-image reasoning question. Add:
 "original_svg": an SVG string (viewBox "0 0 100 100") of the original

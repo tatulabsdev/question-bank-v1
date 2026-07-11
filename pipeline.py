@@ -121,7 +121,7 @@ def generate_batch(topic_id: str, level: int, count: int):
 # the parsed results avoids this without needing to guess a bigger token
 # limit that would just delay the same problem at a slightly larger count.
 DIAGRAM_KINDS_REQUIRING_LLM_OUTPUT = {"geometry_svg", "chart_data", "nonverbal_mirror_svg"}
-MAX_DIAGRAM_BATCH_SIZE = 4
+MAX_DIAGRAM_BATCH_SIZE = 2
 
 
 def generate_batch_chunked(topic_id: str, level: int, count: int, diagram_kind):
