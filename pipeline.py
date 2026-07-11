@@ -107,11 +107,44 @@ Return ONLY a JSON array, no markdown fences, no commentary. Each item:
 {"Also include the diagram fields described above in EVERY item — a question in this topic without its diagram is incomplete and will be rejected." if diagram_block else ""}
 """
 
-
 def generate_batch(topic_id: str, level: int, count: int):
     prompt = build_generation_prompt(topic_id, level, count)
     text, provider = call_with_failover(prompt, rotated_chain(GENERATION_CHAIN), label=f"generate:{topic_id}:L{level}")
     return text, provider
+
+
+# Diagram kinds where the LLM has to write out the diagram/chart data
+# itself (as opposed to geometry_engine building it in code first). Large
+# batches of these risk hitting the response token limit before finishing
+# valid JSON — confirmed: an 8-question geometry batch truncated at
+# 32,854 chars mid-array. Splitting into smaller sub-batches and merging
+# the parsed results avoids this without needing to guess a bigger token
+# limit that would just delay the same problem at a slightly larger count.
+DIAGRAM_KINDS_REQUIRING_LLM_OUTPUT = {"geometry_svg", "chart_data", "nonverbal_mirror_svg"}
+MAX_DIAGRAM_BATCH_SIZE = 4
+
+
+def generate_batch_chunked(topic_id: str, level: int, count: int, diagram_kind):
+    """Wraps generate_batch() with automatic chunking for diagram kinds
+    that risk truncation at larger batch sizes. Returns (questions_list,
+    last_successful_provider) — same shape callers need, just already
+    parsed and merged across chunks."""
+    if diagram_kind not in DIAGRAM_KINDS_REQUIRING_LLM_OUTPUT or count <= MAX_DIAGRAM_BATCH_SIZE:
+        raw_text, provider = generate_batch(topic_id, level, count)
+        return parse_questions(raw_text), provider
+
+    all_questions = []
+    last_provider = None
+    remaining = count
+    while remaining > 0:
+        chunk_size = min(MAX_DIAGRAM_BATCH_SIZE, remaining)
+        raw_text, provider = generate_batch(topic_id, level, chunk_size)
+        if raw_text:
+            chunk_questions = parse_questions(raw_text)
+            all_questions.extend(chunk_questions)
+            last_provider = provider
+        remaining -= chunk_size
+    return all_questions, last_provider
 
 
 # ──────────────────────────────────────────────────────────
@@ -423,18 +456,12 @@ def process_job(topic_id: str, level: int, count: int, dry_run: bool = False) ->
             print("   x geometry-first generation failed (no text returned from any provider)")
             return {"generated": 0, "verified": 0, "saved": 0}
         print(f"   generated {len(questions)} via {provider} (geometry built by code, not the LLM)")
-    else:
-        raw_text, provider = generate_batch(topic_id, level, count)
-        if not raw_text:
-            print("   x generation failed on every provider in the chain")
-            return {"generated": 0, "verified": 0, "saved": 0}
-
-        questions = parse_questions(raw_text)
+else:
+        questions, provider = generate_batch_chunked(topic_id, level, count, diagram_kind)
         if not questions:
-            print(f"   x no valid JSON parsed from {provider} response")
+            print("   x generation failed on every provider in the chain (or all chunks came back empty/unparseable)")
             return {"generated": 0, "verified": 0, "saved": 0}
         print(f"   generated {len(questions)} via {provider}")
-
     questions = [q for q in questions if decency_tripwire(q)]
     questions = filter_duplicates(questions, text_key="question")
 

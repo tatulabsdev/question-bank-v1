@@ -132,16 +132,22 @@ def validate_chart_data(question: dict) -> bool:
         return False
     categories = data.get("categories")
     series = data.get("series")
-    if not categories or not series:
+    if not categories or not isinstance(series, list):
         return False
     for s in series:
+        # The model occasionally returns a malformed series list where an
+        # item isn't a dict at all (observed: a plain int), which used to
+        # crash the whole job with AttributeError. Reject the diagram
+        # instead of crashing — this is exactly what the rest of this
+        # gate already does for other malformed cases.
+        if not isinstance(s, dict):
+            return False
         values = s.get("values")
         if not isinstance(values, list) or len(values) != len(categories):
             return False
         if not all(isinstance(v, (int, float)) for v in values):
             return False
     return True
-
 
 _POLYGON_POINTS_RE = re.compile(r'points="([^"]+)"')
 _CIRCLE_R_RE = re.compile(r'<circle[^>]*\br="([\d.]+)"')
