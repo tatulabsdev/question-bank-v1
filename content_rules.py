@@ -51,15 +51,30 @@ your voice and phrasing the way a real teacher naturally would.
    (If the correct answer is B, C, or D, still label these three fields
    by the OTHER three option letters, not always B/C/D literally.)
 
-3. "story_explanation": a short, relatable story-style walkthrough, in the
+   3. "story_explanation": a short, relatable story-style walkthrough, in the
    voice of a favorite teacher explaining it one-on-one — warm, direct,
    plain language. Not a generic AI recap of the calculation steps.
+   THIS APPLIES EVEN AT THE HARDEST LEVELS: a Level 9-10 (UPSC Mains /
+   PhD-entrance / research-depth) question must STILL be explained so an
+   average student can genuinely follow the reasoning — hard content,
+   accessible explanation. Never use "it can be shown that" or "it is
+   well known that" or similar hand-waving that skips the actual
+   reasoning just because the underlying concept is advanced. If a
+   concept genuinely requires a prerequisite idea, explain that
+   prerequisite briefly inline rather than assuming it or skipping past it.
 
-4. "shortcut_tips": MUST include an actual memorable mnemonic — a short
-   acronym, rhyme, or catchy phrase a student could recall in an exam
-   hall under pressure (e.g. "PEMDAS", "SOH-CAH-TOA", "Roygbiv"-style).
-   A generic time-saving method alone is NOT enough — invent or apply a
-   genuine memory device specific to this question's concept, then add
+4. "shortcut_tips": this must read like it came from an actual All-India
+   Rank 1 topper describing exactly how they solved this specific
+   question in under 10 seconds under exam pressure — not a generic
+   "AI-sounding" study tip. MUST include an actual memorable mnemonic —
+   a short acronym, rhyme, or catchy phrase a student could recall in an
+   exam hall under pressure (e.g. "PEMDAS", "SOH-CAH-TOA",
+   "Roygbiv"-style). A generic time-saving method alone is NOT enough —
+   invent or apply a genuine memory device specific to THIS question's
+   numbers/concept, not a recycled generic one. Write it the way a real
+   topper would actually talk about their own trick ("I just remember
+   ___, so I skip straight to ___") — never a listicle, never
+   "here are some tips," then add
    any additional quick-calculation trick after it. Write it like a
    mentor sharing their own trick, not a listicle.
 
