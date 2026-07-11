@@ -30,25 +30,43 @@ CRITICAL COPYRIGHT RULES (do not break these):
 # including per-wrong-option reasons (this was missing from the old schema)
 # ──────────────────────────────────────────────────────────
 EXPLANATION_LAYER_INSTRUCTION = """
-For EACH question, produce exactly these explanation fields:
+For EACH question, produce exactly these explanation fields. Write like an
+experienced, warm human mentor talking directly to ONE student sitting
+next to you — not like an AI summarizing steps. Avoid formulaic,
+repetitive sentence patterns (don't structure every story the same way,
+e.g. always "Name does X, then realizes Y, so the answer is Z"). Vary
+your voice and phrasing the way a real teacher naturally would.
 
 1. "why_correct": why the correct option is right (clear, step-by-step).
+
 2. "why_wrong_option_b" / "why_wrong_option_c" / "why_wrong_option_d":
-   for EACH of the three incorrect options specifically — why a student
-   might pick it, and how to avoid that mistake. (If the correct answer
-   is B, C, or D, still label these three fields by the OTHER three
-   option letters, not always B/C/D literally — use the actual letters
-   of the three incorrect options.)
-3. "story_explanation": a short, relatable story-style walkthrough of the
-   question and answer approach, friendly and conversational in tone.
+   covers the three incorrect options. Use judgment on depth:
+   - If each wrong option reflects a genuinely DIFFERENT misconception
+     worth understanding separately, explain each one in its own field.
+   - If the wrong options are just simple slips (arithmetic errors, minor
+     misreads) that don't need individual depth, write ONE combined
+     sentence covering all three together in the "why_wrong_option_b"
+     field, and leave "why_wrong_option_c" and "why_wrong_option_d" as
+     empty strings ("") — don't pad these just to fill three fields.
+   (If the correct answer is B, C, or D, still label these three fields
+   by the OTHER three option letters, not always B/C/D literally.)
+
+3. "story_explanation": a short, relatable story-style walkthrough, in the
+   voice of a favorite teacher explaining it one-on-one — warm, direct,
+   plain language. Not a generic AI recap of the calculation steps.
+
 4. "shortcut_tips": MUST include an actual memorable mnemonic — a short
    acronym, rhyme, or catchy phrase a student could recall in an exam
    hall under pressure (e.g. "PEMDAS", "SOH-CAH-TOA", "Roygbiv"-style).
    A generic time-saving method alone is NOT enough — invent or apply a
    genuine memory device specific to this question's concept, then add
-   any additional quick-calculation trick after it.
-5. "cross_exam_intelligence": which other exams ask this type of question,
-   how often, and at what difficulty.
+   any additional quick-calculation trick after it. Write it like a
+   mentor sharing their own trick, not a listicle.
+
+5. "cross_exam_intelligence": name which other exams ask this type of
+   question. Do NOT include frequency callouts ("appears 2-4 times per
+   paper"), difficulty ratings, or any other meta-scoring language — just
+   the exam names and, if genuinely useful, what angle they test it from.
 """
 
 # ──────────────────────────────────────────────────────────
