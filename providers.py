@@ -21,6 +21,7 @@ import os
 import time
 import json
 import random
+import threading
 import requests
 
 from config import PROVIDER_MODELS
@@ -158,14 +159,55 @@ VERIFICATION_CHAIN_1 = [call_groq, call_cerebras]          # uses groq_strong mo
 VERIFICATION_CHAIN_2 = [call_gemini, call_mistral, call_openrouter]
 TRANSLATION_CHAIN = [call_mistral, call_cerebras, call_groq, call_openrouter]
 
+# ──────────────────────────────────────────────────────────
+# CONCURRENT-JOB PROVIDER ROTATION
+# When jobs run in parallel (see pipeline.py's ThreadPoolExecutor), every
+# thread calling call_with_failover(prompt, GENERATION_CHAIN) would
+# otherwise all hit Cerebras first at the same moment, immediately
+# contending for Cerebras's own rate limit before any of them fall
+# through to the other three providers — wasting the fact that Groq,
+# OpenRouter, and Mistral have entirely separate quotas that could be
+# used AT THE SAME TIME instead of sitting idle.
+#
+# _next_chain_offset() hands out a rotating starting index (thread-safe
+# via the lock) so concurrent jobs actually start on DIFFERENT
+# providers. Each job's chain still wraps around to try all providers
+# if its first choice fails — this only changes which one goes first.
+# ──────────────────────────────────────────────────────────
+_chain_offset_lock = threading.Lock()
+_chain_offset_counter = 0
+
+
+def _next_chain_offset(chain_length: int) -> int:
+    global _chain_offset_counter
+    with _chain_offset_lock:
+        offset = _chain_offset_counter % chain_length
+        _chain_offset_counter += 1
+    return offset
+
+
+def rotated_chain(chain: list) -> list:
+    """Returns the chain reordered to start at a rotating offset, wrapping
+    around, so concurrent callers spread across providers instead of all
+    starting at index 0 simultaneously."""
+    offset = _next_chain_offset(len(chain))
+    return chain[offset:] + chain[:offset]
+
 
 def call_with_failover(prompt, chain, model_override=None, label="call"):
     """Try each provider in order. On rate_limit/auth_error/error, back off
     briefly and move to the next provider. Returns (text, provider_name) or
-    (None, None) if every provider in the chain failed."""
+    (None, None) if every provider in the chain failed.
+
+    NOTE: model_override is provider-specific (e.g. a Groq model id isn't a
+    valid Cerebras model id), so it must ONLY be applied to the first
+    provider in the chain — never carried over to the fallback providers
+    that follow it, or they'll get called with a model name that doesn't
+    exist on their platform."""
     for attempt, fn in enumerate(chain):
+        use_override = model_override if attempt == 0 else None
         for retry in range(MAX_RETRIES_PER_PROVIDER):
-            text, status = fn(prompt, model_override) if model_override else fn(prompt)
+            text, status = fn(prompt, use_override) if use_override else fn(prompt)
             if status == "ok" and text:
                 return text, fn.__name__
             if status == "no_key":

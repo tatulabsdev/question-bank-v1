@@ -12,18 +12,20 @@ Usage:
     python pipeline.py --max-jobs 5     # just a handful, for testing
     python pipeline.py --report         # print quota progress and exit
     python pipeline.py --dry-run        # generate+verify but don't push to Supabase
+    python pipeline.py --max-workers 1  # fall back to old sequential behavior
 
 NOTE on exam_tags: this still writes an empty list for exam_tags on every
 record. Wiring real exam_topic_weightage data in is a separate next step
 (needs to confirm that table actually has data first) — not faked here.
 """
-
 import os
 import json
 import time
 import uuid
 import argparse
+import threading
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -40,7 +42,7 @@ from diagrams import diagram_instruction_for, validate_diagram
 from svg_sanitizer import sanitize_question_svgs
 import geometry_engine
 from providers import (
-    call_with_failover, GENERATION_CHAIN, VERIFICATION_CHAIN_1,
+    call_with_failover, rotated_chain, GENERATION_CHAIN, VERIFICATION_CHAIN_1,
     VERIFICATION_CHAIN_2,
 )
 from dedup import filter_duplicates
@@ -108,7 +110,7 @@ Return ONLY a JSON array, no markdown fences, no commentary. Each item:
 
 def generate_batch(topic_id: str, level: int, count: int):
     prompt = build_generation_prompt(topic_id, level, count)
-    text, provider = call_with_failover(prompt, GENERATION_CHAIN, label=f"generate:{topic_id}:L{level}")
+    text, provider = call_with_failover(prompt, rotated_chain(GENERATION_CHAIN), label=f"generate:{topic_id}:L{level}")
     return text, provider
 
 
@@ -176,7 +178,7 @@ def generate_geometry_first_batch(topic_id: str, level: int, count: int):
     ]
 
     prompt = build_geometry_first_prompt(topic_id, level, scenarios)
-    text, provider = call_with_failover(prompt, GENERATION_CHAIN, label=f"geo-generate:{topic_id}:L{level}")
+    text, provider = call_with_failover(prompt, rotated_chain(GENERATION_CHAIN), label=f"geo-generate:{topic_id}:L{level}")
     if not text:
         return [], None
 
@@ -387,11 +389,17 @@ def push_to_supabase(records: list) -> int:
     return saved
 
 
+_pending_review_lock = threading.Lock()
+
+
 def append_pending_review(question: dict, topic_id: str, level: int, reason: str):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     record = {"topic_id": topic_id, "level": level, "reason": reason, "question": question}
-    with open(PENDING_REVIEW_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # Concurrent jobs (see ThreadPoolExecutor in main()) could otherwise
+    # interleave partial writes to this single shared log file.
+    with _pending_review_lock:
+        with open(PENDING_REVIEW_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 # ──────────────────────────────────────────────────────────
@@ -471,6 +479,14 @@ def main():
     parser.add_argument("--questions-per-job", type=int, default=10)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--report", action="store_true")
+    parser.add_argument(
+        "--max-workers", type=int, default=4,
+        help="How many jobs to run concurrently. Default 4 matches the "
+             "number of generation providers (Cerebras/Groq/OpenRouter/"
+             "Mistral) so concurrent jobs can actually spread across "
+             "separate rate-limit quotas instead of one job at a time. "
+             "Set to 1 to fall back to the old strictly-sequential behavior."
+    )
     args = parser.parse_args()
 
     if args.report:
@@ -481,22 +497,31 @@ def main():
     print("=" * 60)
     print(f"TryIT Question Engine — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Jobs queued this run: {len(jobs)} (highest coverage_score first)")
+    print(f"Running with {args.max_workers} concurrent worker(s)")
     print("=" * 60)
 
     totals = {"generated": 0, "verified": 0, "saved": 0}
     failed_jobs = []
-    for topic_id, level, count in jobs:
+
+    def run_one(job):
+        topic_id, level, count = job
         try:
-            result = process_job(topic_id, level, count, dry_run=args.dry_run)
+            return (job, process_job(topic_id, level, count, dry_run=args.dry_run), None)
         except Exception as e:
             # One job's unexpected failure must not cost the other 59 jobs
             # in an unattended 3x/day run — log it clearly and keep going.
-            print(f"   !! UNEXPECTED ERROR on {topic_id} L{level}: {type(e).__name__}: {e}")
-            failed_jobs.append((topic_id, level, str(e)))
-            continue
-        for k in totals:
-            totals[k] += result[k]
-        time.sleep(1)
+            return (job, None, e)
+
+    with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+        futures = [executor.submit(run_one, job) for job in jobs]
+        for future in as_completed(futures):
+            (topic_id, level, count), result, err = future.result()
+            if err is not None:
+                print(f"   !! UNEXPECTED ERROR on {topic_id} L{level}: {type(err).__name__}: {err}")
+                failed_jobs.append((topic_id, level, str(err)))
+                continue
+            for k in totals:
+                totals[k] += result[k]
 
     print("\n" + "=" * 60)
     print(f"DONE. generated={totals['generated']} verified={totals['verified']} saved={totals['saved']}")
