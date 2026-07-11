@@ -1,3 +1,4 @@
+
 """
 TryIT Question Engine — Configuration
 =======================================
@@ -76,6 +77,27 @@ def _build_diagram_kind_lookup():
 DIAGRAM_KIND_BY_TOPIC_ID = _build_diagram_kind_lookup()
 
 # ──────────────────────────────────────────────────────────
+# INDIAN STATES / UNION TERRITORIES — canonical official names, used by
+# diagrams.py's validate_map_region() to reject any state/UT name the
+# model didn't get exactly right (no abbreviations, no misspellings).
+# 28 states + 8 union territories = 36, matching the "36 State PSCs"
+# figure already locked into SEO/messaging elsewhere.
+# ──────────────────────────────────────────────────────────
+INDIAN_STATES_UTS = {
+    # States (28)
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal",
+    # Union Territories (8)
+    "Andaman and Nicobar Islands", "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
+    "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+}
+
+# ──────────────────────────────────────────────────────────
 # PROVIDER MODEL DEFAULTS
 # ──────────────────────────────────────────────────────────
 PROVIDER_MODELS = {
@@ -97,3 +119,24 @@ def access_tier_for_level(level: int) -> str:
     get access to anything Pro does automatically on the app side."""
     return "free" if level <= 6 else "pro"
 DEFAULT_PATTERN_TYPE = "standalone_mcq4"  # assumption — adjust per topic/exam pattern as needed
+
+# ──────────────────────────────────────────────────────────
+# INDIAN STATES / UTS — canonical list used by diagrams.py's
+# validate_map_region() to check the model named a real region. This was
+# referenced but never defined, which would have raised a NameError the
+# first time a topic used diagram_kind == "map_region" (currently no
+# topic in seed_topics.py does — this is here so it doesn't crash later).
+# ──────────────────────────────────────────────────────────
+INDIAN_STATES_UTS = {
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+    "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+    "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim",
+    "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+    "West Bengal",
+    "Andaman and Nicobar Islands", "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
+    "Ladakh", "Lakshadweep", "Puducherry",
+}
+
+

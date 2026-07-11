@@ -302,6 +302,50 @@ DIFFICULTY_RANGE_BY_TIER = {
     "niche": "6-9",    # professional/graduate-level only
 }
 
+# ──────────────────────────────────────────────────────────
+# DIFFICULTY RANGE OVERRIDES — for the Class-1-to-PhD spiral vision.
+# Most topics are fine on their flat tier default (e.g. Trigonometry
+# genuinely starts at Class 11, "Seating Arrangement" isn't an LKG
+# concept — forcing level 1 or 10 on those would just generate nonsense
+# content). But two families of subjects have a REAL full-spectrum
+# arc, and the topic list already splits them into paired subject_ids
+# that map naturally onto the two halves of that arc:
+#
+# 1. GK_BROAD_FLOOR_TO_1: the gk_* subjects + current_affairs are the
+#    intro/broad version of a topic — a Class 1 picture-GK question
+#    ("who is this?" / Gandhi) is genuinely valid here. Extend the
+#    FLOOR down to level 1, keep the existing ceiling (these are
+#    trivia-depth, not PhD-research-depth).
+# 2. DETAILED_CEILING_TO_10: the paired "(Detailed)" subjects
+#    (history/geography/polity/economy) plus the hard sciences with a
+#    real PhD track (physics/chemistry/biology/science_gen/computer/
+#    environment) genuinely have UPSC-Mains-advanced / PhD-entrance /
+#    research-level content. Extend the CEILING up to level 10, keep
+#    the existing floor (these are past-basic-school depth already).
+# ──────────────────────────────────────────────────────────
+GK_BROAD_FLOOR_TO_1 = {
+    "gk_history", "gk_polity", "gk_geography", "gk_economy",
+    "gk_science", "gk_sports", "gk_awards", "gk_india", "current_affairs",
+}
+
+DETAILED_CEILING_TO_10 = {
+    "history", "geography", "polity", "economy",
+    "physics", "chemistry", "biology", "science_gen", "computer", "environment",
+}
+
+
+def difficulty_range_for_subject(subject_id: str, tier: str) -> str:
+    """Applies the two targeted overrides above on top of the flat tier
+    default. A subject only ever gets ONE override (floor OR ceiling
+    extended, never both) since no current subject_id needs both ends
+    widened at once."""
+    lo, hi = DIFFICULTY_RANGE_BY_TIER[tier].split("-")
+    if subject_id in GK_BROAD_FLOOR_TO_1:
+        lo = "1"
+    if subject_id in DETAILED_CEILING_TO_10:
+        hi = "10"
+    return f"{lo}-{hi}"
+
 
 def build_topic_rows():
     rows = []
@@ -322,7 +366,7 @@ def build_topic_rows():
                 "topic_name_hi": None,  # left for a dedicated, native-reviewed translation pass
                 "topic_name_ta": None,
                 "parent_topic_id": None,
-                "difficulty_range": DIFFICULTY_RANGE_BY_TIER[tier],  # still an assumption — confirm against your actual convention
+                "difficulty_range": difficulty_range_for_subject(subject_id, tier),
                 "is_visual": is_visual,
                 "coverage_score": {"crowded": 90, "medium": 60, "niche": 30}[tier],
                 "question_target": TIER_TARGETS[target_key],
