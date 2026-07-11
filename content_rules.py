@@ -41,8 +41,12 @@ For EACH question, produce exactly these explanation fields:
    of the three incorrect options.)
 3. "story_explanation": a short, relatable story-style walkthrough of the
    question and answer approach, friendly and conversational in tone.
-4. "shortcut_tips": quick tricks, mnemonics, or time-saving methods for
-   exam conditions.
+4. "shortcut_tips": MUST include an actual memorable mnemonic — a short
+   acronym, rhyme, or catchy phrase a student could recall in an exam
+   hall under pressure (e.g. "PEMDAS", "SOH-CAH-TOA", "Roygbiv"-style).
+   A generic time-saving method alone is NOT enough — invent or apply a
+   genuine memory device specific to this question's concept, then add
+   any additional quick-calculation trick after it.
 5. "cross_exam_intelligence": which other exams ask this type of question,
    how often, and at what difficulty.
 """
