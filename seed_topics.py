@@ -333,17 +333,46 @@ DETAILED_CEILING_TO_10 = {
     "physics", "chemistry", "biology", "science_gen", "computer", "environment",
 }
 
+# ──────────────────────────────────────────────────────────
+# DIAGRAM-TOPIC CEILING OVERRIDES
+# Three distinct tiers, reasoned separately rather than a blanket bump —
+# not every diagram-bearing subject actually has exam depth at every level:
+#
+# 1. DIAGRAM_CEILING_TO_10: maths_geometry / maths_trigonometry have real
+#    GATE / CUET-PG / PhD-entrance depth (advanced coordinate geometry,
+#    3D mensuration, advanced trig identities are genuinely tested at
+#    that level).
+# 2. DIAGRAM_CEILING_TO_9: maths_stats / data_interpretation have real
+#    CUET-PG Economics/Commerce/Statistics-entrance depth, but "PhD
+#    research-level bar graph reading" isn't a real thing — capped at 9,
+#    not 10.
+# 3. DIAGRAM_CEILING_TO_8: reasoning_nonverbal (mirror image, paper
+#    folding, embedded figures) — CAT/XAT-level nonverbal reasoning is
+#    real and was being excluded by the flat crowded-tier cap of 7
+#    (level 8 in LEVELS is literally "GATE/CAT/CLAT/NEET"). But GATE
+#    itself doesn't test this domain, and there's no meaningful
+#    "PhD/research-level" mirror-image puzzle — so this stops at 8,
+#    deliberately not extended to 9-10 like the others.
+# ──────────────────────────────────────────────────────────
+DIAGRAM_CEILING_TO_10 = {"maths_geometry", "maths_trigonometry"}
+DIAGRAM_CEILING_TO_9 = {"maths_stats", "data_interpretation"}
+DIAGRAM_CEILING_TO_8 = {"reasoning_nonverbal"}
+
 
 def difficulty_range_for_subject(subject_id: str, tier: str) -> str:
-    """Applies the two targeted overrides above on top of the flat tier
-    default. A subject only ever gets ONE override (floor OR ceiling
-    extended, never both) since no current subject_id needs both ends
-    widened at once."""
+    """Applies the targeted overrides above on top of the flat tier
+    default."""
     lo, hi = DIFFICULTY_RANGE_BY_TIER[tier].split("-")
     if subject_id in GK_BROAD_FLOOR_TO_1:
         lo = "1"
     if subject_id in DETAILED_CEILING_TO_10:
         hi = "10"
+    if subject_id in DIAGRAM_CEILING_TO_10:
+        hi = "10"
+    if subject_id in DIAGRAM_CEILING_TO_9:
+        hi = "9"
+    if subject_id in DIAGRAM_CEILING_TO_8:
+        hi = "8"
     return f"{lo}-{hi}"
 
 
