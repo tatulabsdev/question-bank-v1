@@ -456,7 +456,7 @@ def process_job(topic_id: str, level: int, count: int, dry_run: bool = False) ->
             print("   x geometry-first generation failed (no text returned from any provider)")
             return {"generated": 0, "verified": 0, "saved": 0}
         print(f"   generated {len(questions)} via {provider} (geometry built by code, not the LLM)")
-else:
+    else:
         questions, provider = generate_batch_chunked(topic_id, level, count, diagram_kind)
         if not questions:
             print("   x generation failed on every provider in the chain (or all chunks came back empty/unparseable)")
