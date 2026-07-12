@@ -1,3 +1,4 @@
+
 """
 TryIT Question Engine — Quota Tracker
 ========================================
@@ -28,7 +29,6 @@ def build_today_jobs(questions_per_job: int = 10, max_jobs: int = None) -> list:
             continue
 
         levels = levels_from_difficulty_range(topic.get("difficulty_range", ""))
-        per_level_floor = max(target // len(levels), questions_per_job)
 
         # questions_available is a topic-level total (not per-level), so
         # split the remaining work evenly across this topic's levels —
@@ -37,10 +37,18 @@ def build_today_jobs(questions_per_job: int = 10, max_jobs: int = None) -> list:
         remaining_total = target - available
         if remaining_total <= 0:
             continue
-        remaining_per_level = max(remaining_total // len(levels), 0)
+
+        # Distribute remaining_total across levels using ceiling division
+        # rather than floor division — floor division rounds small
+        # remainders (e.g. remaining_total=3, len(levels)=5) down to 0 for
+        # every level, which would silently stall a topic forever right
+        # before it hits its target. Ceiling division guarantees any
+        # nonzero remainder still produces at least one job.
+        num_levels = len(levels)
+        remaining_per_level = -(-remaining_total // num_levels)  # ceil
 
         for level in levels:
-            count = min(remaining_per_level, questions_per_job) if remaining_per_level > 0 else 0
+            count = min(remaining_per_level, questions_per_job)
             if count <= 0:
                 continue
             jobs.append((topic_id, level, count))
@@ -60,3 +68,5 @@ def progress_report() -> str:
         pct = (available / target * 100) if target else 0
         lines.append(f"  {topic['topic_id']:45s} {available:>6}/{target:<6} ({pct:5.1f}%)  coverage={topic.get('coverage_score')}")
     return "\n".join(lines)
+
+
