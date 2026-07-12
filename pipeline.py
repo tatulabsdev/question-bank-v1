@@ -283,8 +283,6 @@ Respond with ONLY a JSON object, no commentary:
 Score 1-10 based on: clarity (2pts), plausibility of wrong options (2pts),
 explanation quality (2pts), cultural relevance (2pts), uniqueness (2pts).
 """
-
-
 def verify_question(question: dict):
     prompt = build_verification_prompt(question)
 
@@ -301,14 +299,25 @@ def verify_question(question: dict):
     scores = [r["quality_score"] for r in (result1, result2) if r and isinstance(r.get("quality_score"), (int, float))]
     avg_score = sum(scores) / len(scores) if scores else 0
 
+    # TEMP DIAGNOSTIC: the verifier already returns a "reason" field that
+    # was previously discarded — surface it on any failure so we can see
+    # WHY, instead of only a pass/fail count. Remove once the L10/diagram
+    # verification-failure investigation is done.
+    reasons = [r.get("reason") for r in (result1, result2) if r and r.get("reason")]
+
     if any_factual_error:
+        print(f"      [verify FAIL: factual error] {reasons}")
         return False, avg_score, False
 
     if votes_correct == 2:
         passed = avg_score >= QUALITY_SCORE_THRESHOLD
+        if not passed:
+            print(f"      [verify FAIL: low score {avg_score:.1f}/{QUALITY_SCORE_THRESHOLD}] {reasons}")
         return passed, avg_score, False
     if votes_correct == 1:
+        print(f"      [verify FAIL: split vote, sent to review] {reasons}")
         return False, avg_score, True
+    print(f"      [verify FAIL: both verifiers said incorrect] {reasons}")
     return False, avg_score, False
 
 
