@@ -299,11 +299,19 @@ def verify_question(question: dict):
     scores = [r["quality_score"] for r in (result1, result2) if r and isinstance(r.get("quality_score"), (int, float))]
     avg_score = sum(scores) / len(scores) if scores else 0
 
-    # TEMP DIAGNOSTIC: the verifier already returns a "reason" field that
+# TEMP DIAGNOSTIC: the verifier already returns a "reason" field that
     # was previously discarded — surface it on any failure so we can see
-    # WHY, instead of only a pass/fail count. Remove once the L10/diagram
-    # verification-failure investigation is done.
-    reasons = [r.get("reason") for r in (result1, result2) if r and r.get("reason")]
+    # WHY, instead of only a pass/fail count. Label each reason with which
+    # verifier gave it and its actual answer_is_correct vote — otherwise a
+    # split vote just shows two reasons with no way to tell which verifier
+    # said "wrong" or why. Remove once the L10/diagram investigation is done.
+    def _label(name, r):
+        if not r:
+            return None
+        vote = "CORRECT" if r.get("answer_is_correct") else "INCORRECT"
+        return f"{name}[{vote}]: {r.get('reason')}"
+
+    reasons = [x for x in (_label("verify1", result1), _label("verify2", result2)) if x]
 
     if any_factual_error:
         print(f"      [verify FAIL: factual error] {reasons}")

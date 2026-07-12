@@ -218,21 +218,25 @@ def validate_geometry_svg(question: dict, tolerance: float = 0.15) -> bool:
     # rectangle / other — structural presence check only for now
     return "<rect" in svg or "<polygon" in svg or "<circle" in svg
 
-
 def _ratios_consistent(drawn: list, given: list, tolerance: float) -> bool:
     """Checks that the drawn side lengths are proportionally consistent
     with the given side lengths, regardless of absolute scale — i.e. the
     ratio drawn[i]/given[i] should be roughly the same constant for all i."""
+    # The model occasionally writes a literal null (or a non-numeric
+    # value) for one of the given side lengths — valid JSON, but not
+    # something float() can convert, which used to crash the whole job.
+    # Reject the diagram instead, same pattern as the chart_data fix.
+    if any(g is None or not isinstance(g, (int, float, str)) for g in given):
+        return False
+    try:
+        given_sorted = sorted(float(g) for g in given)
+    except (TypeError, ValueError):
+        return False
     drawn_sorted = sorted(drawn)
-    given_sorted = sorted(float(g) for g in given)
     if any(g == 0 for g in given_sorted):
         return False
     ratios = [d / g for d, g in zip(drawn_sorted, given_sorted)]
-    avg_ratio = sum(ratios) / len(ratios)
-    if avg_ratio == 0:
         return False
-    return all(abs(r - avg_ratio) / avg_ratio <= tolerance for r in ratios)
-
 
 def _reflect_horizontal(points, width=100.0):
     return [(width - x, y) for x, y in points]
