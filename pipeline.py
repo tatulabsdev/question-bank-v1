@@ -35,7 +35,8 @@ from config import (
     difficulty_label_for_level, access_tier_for_level,
 )
 from content_rules import (
-    COPYRIGHT_INSTRUCTION, build_explanation_prompt_block, DECENCY_RULES,
+    COPYRIGHT_INSTRUCTION, SELF_VERIFICATION_INSTRUCTION,
+    build_explanation_prompt_block, DECENCY_RULES,
     PROFANITY_TRIPWIRE_EN,
 )
 from diagrams import diagram_instruction_for, validate_diagram
@@ -84,6 +85,8 @@ DIFFICULTY LEVEL: {level} ({level_desc})
 NUMBER OF QUESTIONS: {count}
 
 {COPYRIGHT_INSTRUCTION}
+
+{SELF_VERIFICATION_INSTRUCTION}
 
 {DECENCY_RULES}
 
@@ -283,23 +286,44 @@ Respond with ONLY a JSON object, no commentary:
 Score 1-10 based on: clarity (2pts), plausibility of wrong options (2pts),
 explanation quality (2pts), cultural relevance (2pts), uniqueness (2pts).
 """
+
+
 def verify_question(question: dict):
     prompt = build_verification_prompt(question)
 
-    text1, _ = call_with_failover(prompt, VERIFICATION_CHAIN_1,
+    text1, provider1 = call_with_failover(prompt, VERIFICATION_CHAIN_1,
                                    model_override=PROVIDER_MODELS["groq_strong"],
                                    label="verify1")
-    text2, _ = call_with_failover(prompt, VERIFICATION_CHAIN_2, label="verify2")
+    text2, provider2 = call_with_failover(prompt, VERIFICATION_CHAIN_2, label="verify2")
 
     result1 = _parse_verification(text1)
     result2 = _parse_verification(text2)
+
+    # TEMP DIAGNOSTIC: distinguish WHERE verify1/verify2 actually failed —
+    # every provider in the chain exhausted (text is None) vs got text
+    # back but it didn't parse as valid JSON (result is None despite text
+    # existing) vs genuinely succeeded. This matters because the old code
+    # silently treated "verifier never responded" the SAME as "verifier
+    # disagreed", mislabeling infrastructure failures as content disputes
+    # and sending them to human review under the wrong reason.
+    def _status(text, result, provider):
+        if text is None:
+            return f"NO PROVIDER RESPONDED (chain exhausted)"
+        if result is None:
+            return f"got text from {provider} but FAILED TO PARSE as JSON"
+        return f"OK via {provider}"
+
+    valid_count = sum(1 for r in (result1, result2) if r)
+    if valid_count < 2:
+        print(f"      [verify1 status] {_status(text1, result1, provider1)}")
+        print(f"      [verify2 status] {_status(text2, result2, provider2)}")
 
     votes_correct = sum(1 for r in (result1, result2) if r and r.get("answer_is_correct"))
     any_factual_error = any(r and r.get("factual_error_found") for r in (result1, result2) if r)
     scores = [r["quality_score"] for r in (result1, result2) if r and isinstance(r.get("quality_score"), (int, float))]
     avg_score = sum(scores) / len(scores) if scores else 0
 
-# TEMP DIAGNOSTIC: the verifier already returns a "reason" field that
+    # TEMP DIAGNOSTIC: the verifier already returns a "reason" field that
     # was previously discarded — surface it on any failure so we can see
     # WHY, instead of only a pass/fail count. Label each reason with which
     # verifier gave it and its actual answer_is_correct vote — otherwise a
@@ -323,7 +347,17 @@ def verify_question(question: dict):
             print(f"      [verify FAIL: low score {avg_score:.1f}/{QUALITY_SCORE_THRESHOLD}] {reasons}")
         return passed, avg_score, False
     if votes_correct == 1:
-        print(f"      [verify FAIL: split vote, sent to review] {reasons}")
+        if valid_count == 1:
+            # NOT a genuine disagreement — the other verifier's whole
+            # provider chain failed to respond at all. Mislabeling this
+            # as "verifier disagreement" (the old behavior) buried real
+            # infrastructure failures inside the content-dispute review
+            # queue. Still sent to review (fail closed on single-opinion
+            # data, don't approve on one verifier alone) but the reason
+            # now honestly says why.
+            print(f"      [verify FAIL: only 1/2 verifiers responded — NOT a real disagreement] {reasons}")
+        else:
+            print(f"      [verify FAIL: genuine 2-verifier split vote, sent to review] {reasons}")
         return False, avg_score, True
     print(f"      [verify FAIL: both verifiers said incorrect] {reasons}")
     return False, avg_score, False
