@@ -52,9 +52,27 @@ def _generate_depth(prompt, label):
 
 
 def build_verification_prompt(depth: str, explanation_text: str, india_example: str) -> str:
+    if depth == "quick":
+        self_sufficient_definition = (
+            '"self_sufficient": Quick is a FAST RECALL AID for a student who '
+            "already learned this concept once via the Standard or Deep Dive "
+            "version — it is NOT trying to teach from zero, and should NOT be "
+            "penalized for being condensed. False only if it's actually "
+            "misleading or would cause a student to recall the concept "
+            "WRONG — not merely for being brief."
+        )
+    else:
+        self_sufficient_definition = (
+            '"self_sufficient": could a student with NO outside help (no '
+            "teacher, no tutor, no forum) genuinely understand this from the "
+            "text alone? False if it skips a step, uses unexplained jargon, "
+            'or hand-waves ("it can be shown that", "obviously", "clearly").'
+        )
+
     return f"""Check this {depth}-depth concept-teaching content against a
 strict "no mentor needed" bar — a student with zero outside help must
 be able to genuinely understand this, not just technically read it.
+{"Note: Quick depth has its own appropriately different bar, see below." if depth == "quick" else ""}
 
 EXPLANATION: {explanation_text}
 INDIA EXAMPLE: {india_example}
@@ -71,10 +89,7 @@ Respond with ONLY a JSON object:
 Field definitions — be strict:
 - "factually_accurate": is the explanation actually correct, with no
   errors in the concept, formula, or reasoning?
-- "self_sufficient": could a student with NO outside help (no teacher,
-  no tutor, no forum) genuinely understand this from the text alone?
-  False if it skips a step, uses unexplained jargon, or hand-waves
-  ("it can be shown that", "obviously", "clearly").
+- {self_sufficient_definition}
 - "india_example_is_genuine": is this a real, specific, relatable
   Indian everyday scenario (not generic, not Western-context, not
   vague)?

@@ -105,6 +105,14 @@ def build_quick_prompt(topic_id: str, topic_name: str, subject_name: str,
                         standard_explanation: str, standard_example: str) -> str:
     return f"""{CORE_TEACHING_INSTRUCTION}
 
+OVERRIDE FOR THIS DEPTH SPECIFICALLY: the "mandatory worked example" and
+"no unexplained notation" rules above apply to Standard and Deep Dive,
+which teach from scratch. Quick is different — it's a fast recall aid
+for a student who ALREADY learned this once, so it does NOT need a full
+worked example or first-principles notation definitions. It still must
+be factually accurate and must not mislead — just don't force a full
+teaching structure into 2-3 sentences.
+
 TOPIC: {topic_name} (subject: {subject_name})
 DEPTH: Quick (~2 minute read) — a fast pre-exam refresher, NOT a first
 introduction. Assume the student already learned this once; they need
