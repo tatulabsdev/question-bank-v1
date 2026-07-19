@@ -133,6 +133,14 @@ def push_concept_content(rows: list) -> int:
             f"{url}/rest/v1/concept_content",
             headers={"apikey": key, "Authorization": f"Bearer {key}",
                      "Content-Type": "application/json", "Prefer": "return=minimal,resolution=merge-duplicates"},
+            # on_conflict tells PostgREST WHICH unique constraint to treat
+            # as the merge target. Without this, it only knows about the
+            # primary key (concept_id, always a fresh UUID so it never
+            # actually conflicts) — the real (topic_id, depth) uniqueness
+            # rule was silently ignored, causing every re-run on an
+            # already-generated topic to fail with a 409 instead of
+            # cleanly updating.
+            params={"on_conflict": "topic_id,depth"},
             json=batch, timeout=REQUEST_TIMEOUT,
         )
         if r.status_code in (200, 201):
