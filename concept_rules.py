@@ -45,6 +45,25 @@ generic or Western-context examples entirely.
 Never write in a way that assumes the student already has outside help
 available to fill gaps — if a prerequisite idea is needed, explain it
 briefly inline rather than assuming it or waving past it.
+
+MANDATORY — no unexplained notation: never use a symbol, term, or
+notation (e.g. a formula symbol, mathematical notation, technical
+vocabulary) without defining what it means the FIRST time it appears.
+If you would need a footnote to explain something, put that
+explanation directly in the sentence instead — there is no footnote a
+student can click on.
+
+MANDATORY — a real worked example: include at least one CONCRETE
+numerical example showing the actual step-by-step arithmetic/reasoning
+worked out in full — not a description of the method in words, an
+actual worked-through instance with real numbers a student can follow
+line by line and verify themselves.
+
+SELF-CHECK BEFORE FINALIZING: re-read your own explanation as if you
+were a skeptical student. Is every mathematical or factual claim you
+made actually true? Work through your own worked example again and
+confirm the arithmetic is genuinely correct — do not state a property
+or result you have not actually double-checked.
 """
 
 
