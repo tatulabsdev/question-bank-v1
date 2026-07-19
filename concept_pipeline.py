@@ -48,7 +48,13 @@ def _parse_concept_json(text):
 
 def _generate_depth(prompt, label):
     text, provider = call_with_failover(prompt, rotated_chain(CONCEPT_CHAIN), label=label)
-    return _parse_concept_json(text), provider
+    result = _parse_concept_json(text)
+    if result is None:
+        if text is None:
+            print(f"      [{label}] NO PROVIDER RESPONDED (all 8 in CONCEPT_CHAIN exhausted)")
+        else:
+            print(f"      [{label}] got text from {provider} but FAILED TO PARSE as JSON")
+    return result, provider
 
 
 def build_verification_prompt(depth: str, explanation_text: str, india_example: str) -> str:
@@ -147,7 +153,7 @@ def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict
     std_prompt = build_standard_prompt(topic_id, topic_name, subject_name)
     std_result, std_provider = _generate_depth(std_prompt, f"concept-std:{topic_id}")
     if not std_result or not std_result.get("explanation_text"):
-        print("   x standard generation failed — skipping this topic entirely (quick/deep_dive need it as anchor)")
+        print(f"   [{topic_id}] x standard generation failed — skipping this topic entirely (quick/deep_dive need it as anchor)")
         return {"generated": 0, "verified": 0, "saved": 0}
 
     std_explanation = std_result["explanation_text"]
@@ -166,13 +172,13 @@ def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict
             result, provider = _generate_depth(prompt, f"concept-{depth}:{topic_id}")
 
         if not result or not result.get("explanation_text"):
-            print(f"   x {depth} generation failed")
+            print(f"   [{topic_id}] x {depth} generation failed")
             continue
 
         explanation_text = result["explanation_text"]
         india_example = result.get("india_example", "")
         passed, score, reason = verify_concept_content(depth, explanation_text, india_example)
-        print(f"   {depth}: {'PASS' if passed else 'FAIL'} (score {score}/10) {'' if passed else '- ' + reason}")
+        print(f"   [{topic_id}] {depth}: {'PASS' if passed else 'FAIL'} (score {score}/10) {'' if passed else '- ' + reason}")
 
         if not passed:
             continue
@@ -193,7 +199,7 @@ def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict
     saved = 0
     if rows and not dry_run:
         saved = push_concept_content(rows)
-        print(f"   pushed {saved}/{len(rows)} depths to Supabase")
+        print(f"   [{topic_id}] pushed {saved}/{len(rows)} depths to Supabase")
 
     return {"generated": 3, "verified": len(rows), "saved": saved}
 
