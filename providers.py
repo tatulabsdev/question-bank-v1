@@ -136,6 +136,81 @@ def call_mistral(prompt, model=None):
         return None, f"error:{e}"
 
 
+def call_cohere(prompt, model=None):
+    """Cohere's free trial API key tier — verify current rate limits
+    against Cohere's docs before relying on this at volume, terms shift
+    over time. Uses the v2 chat endpoint."""
+    key = _env("COHERE_API_KEY")
+    if not key:
+        return None, "no_key"
+    model = model or PROVIDER_MODELS.get("cohere", "command-r-plus")
+    try:
+        r = requests.post(
+            "https://api.cohere.com/v2/chat",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                  "temperature": 0.7, "max_tokens": 12000},
+            timeout=REQUEST_TIMEOUT,
+        )
+        if r.status_code == 429:
+            return None, "rate_limit"
+        if r.status_code in (401, 403):
+            return None, "auth_error"
+        if r.status_code != 200:
+            return None, f"error:{r.status_code}:{r.text[:150]}"
+        data = r.json()
+        text = data["message"]["content"][0]["text"]
+        return text, "ok"
+    except (requests.RequestException, KeyError, IndexError, json.JSONDecodeError) as e:
+        return None, f"error:{e}"
+
+
+def call_huggingface(prompt, model=None):
+    """HuggingFace's free-tier router endpoint (OpenAI-compatible shape)
+    — verify current free-tier model availability/limits against HF's
+    docs, this also shifts over time."""
+    key = _env("HUGGINGFACE_API_KEY")
+    if not key:
+        return None, "no_key"
+    model = model or PROVIDER_MODELS.get("huggingface", "meta-llama/Llama-3.3-70B-Instruct")
+    try:
+        r = requests.post(
+            "https://router.huggingface.co/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                  "temperature": 0.7, "max_tokens": 12000},
+            timeout=REQUEST_TIMEOUT,
+        )
+        return _handle_openai_style_response(r)
+    except requests.RequestException as e:
+        return None, f"error:{e}"
+
+
+def call_azure_openai(prompt, model=None):
+    """Azure OpenAI — deliberately placed LAST in CONCEPT_CHAIN, meant
+    to be used only when every free provider fails, to keep Azure
+    credit usage minimal rather than routine. Requires all three of
+    AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT to
+    be set — verify the exact api-version against your resource's
+    current supported versions if this errors."""
+    key = _env("AZURE_OPENAI_KEY")
+    endpoint = _env("AZURE_OPENAI_ENDPOINT").rstrip("/")
+    deployment = _env("AZURE_OPENAI_DEPLOYMENT")
+    if not key or not endpoint or not deployment:
+        return None, "no_key"
+    try:
+        r = requests.post(
+            f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=2024-08-01-preview",
+            headers={"api-key": key, "Content-Type": "application/json"},
+            json={"messages": [{"role": "user", "content": prompt}],
+                  "temperature": 0.7, "max_tokens": 12000},
+            timeout=REQUEST_TIMEOUT,
+        )
+        return _handle_openai_style_response(r)
+    except requests.RequestException as e:
+        return None, f"error:{e}"
+
+
 def _handle_openai_style_response(r):
     if r.status_code == 429:
         return None, "rate_limit"
@@ -158,6 +233,14 @@ GENERATION_CHAIN = [call_cerebras, call_groq, call_openrouter, call_mistral]
 VERIFICATION_CHAIN_1 = [call_groq, call_cerebras]          # uses groq_strong model, see call_with_failover
 VERIFICATION_CHAIN_2 = [call_gemini, call_mistral, call_openrouter]
 TRANSLATION_CHAIN = [call_mistral, call_cerebras, call_groq, call_openrouter]
+
+# Concept-teaching content chain — 6 free providers rotate as the main
+# workhorse (same rotated_chain() spread-load pattern as GENERATION_CHAIN),
+# with Azure deliberately LAST: only invoked if every free provider in
+# the chain fails, keeping Azure credit usage close to zero in normal
+# operation rather than routine per-call usage.
+CONCEPT_CHAIN = [call_cerebras, call_groq, call_gemini, call_mistral,
+                  call_openrouter, call_cohere, call_huggingface, call_azure_openai]
 
 # ──────────────────────────────────────────────────────────
 # CONCURRENT-JOB PROVIDER ROTATION

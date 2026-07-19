@@ -77,5 +77,32 @@ def fetch_topic_by_id(topic_id):
     return None
 
 
+def fetch_exam_tags_for_topic(topic_id):
+    """Returns real exam_id values this topic maps to, sourced from
+    exam_syllabus_map (built from actual researched weightage, not a
+    guess). Only the 5 exams with genuinely sourced topic-level
+    weightage will ever show up here — see seed_exam_syllabus_map.py's
+    own docstring for why the other exams intentionally have zero rows
+    rather than an invented split. Cached per-topic for the run."""
+    cache_key = f"exam_tags:{topic_id}"
+    if cache_key in _cache:
+        return _cache[cache_key]
+    url, key = _supabase_conf()
+    if not url or not key:
+        return []
+    r = requests.get(
+        f"{url}/rest/v1/exam_syllabus_map",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+        params={"select": "exam_id", "topic_id": f"eq.{topic_id}"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    if r.status_code != 200:
+        return []
+    tags = sorted({row["exam_id"] for row in r.json()})
+    _cache[cache_key] = tags
+    return tags
+
+
 def clear_cache():
     _cache.clear()
+

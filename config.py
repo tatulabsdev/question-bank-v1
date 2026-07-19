@@ -107,6 +107,8 @@ PROVIDER_MODELS = {
     "gemini":     "gemini-2.5-flash",
     "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
     "mistral":    "mistral-small-latest",
+    "cohere":     "command-r-plus",
+    "huggingface":"meta-llama/Llama-3.3-70B-Instruct",
 }
 
 QUALITY_SCORE_THRESHOLD = 7  # out of 10
@@ -138,5 +140,6 @@ INDIAN_STATES_UTS = {
     "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
     "Ladakh", "Lakshadweep", "Puducherry",
 }
+
 
 
