@@ -2,17 +2,34 @@
 TryIT Concept Learning — Content Rules
 ====================================================================
 Prompts for the CONCEPT-TEACHING layer, distinct from the MCQ question
-bank. Each topic gets exactly 3 rows in concept_content (quick,
-standard, deep_dive) — this is a DEPTH axis, not a DIFFICULTY axis.
-The existing 1-10 difficulty ladder lives entirely in the questions
-table; concept_content is orthogonal to it, teaching the underlying
-idea itself before a student ever sees a graded question.
+bank. Each topic now gets content across TWO axes:
 
-GENERATION ORDER MATTERS: "standard" is generated FIRST, since it's the
-anchor — its India Example gets passed into both "quick" (condense it)
-and "deep_dive" (expand on it), so a student moving between depths
-sees the same mental picture getting sharper or richer, not three
-disconnected explanations of the same topic.
+1. LEVEL (1-10) — matches the exact same difficulty ladder used by the
+   MCQ question bank (see config.py's LEVELS). This is the axis that
+   determines WHO the explanation is for — a Class 2 student and a PhD
+   aspirant need genuinely different vocabulary, abstraction, and
+   worked-example complexity for the "same" topic, not just more or
+   less detail. Only levels within a topic's existing difficulty_range
+   get generated (matches the same range already used for questions).
+
+2. DEPTH (quick/standard/deep_dive) — how much time a student at THAT
+   level wants to spend reading right now. This is orthogonal to level:
+   it doesn't change who the audience is, only how much of the same
+   sophistication gets unpacked.
+
+So a single topic like Number System (difficulty_range 2-7) generates
+up to 6 levels × 3 depths = 18 rows, each one genuinely rewritten for
+that level's audience, not just re-labeled copies of one explanation.
+
+GENERATION ORDER PER LEVEL: "standard" is generated FIRST for that
+level, since it's the anchor — its India Example gets passed into both
+"quick" (condense it) and "deep_dive" (expand on it) AT THE SAME LEVEL,
+so a student moving between depths within one level sees a consistent
+mental picture. Different levels are independent of each other — a
+Level 8 explanation is not built from the Level 3 one, since the
+audience is different enough that reusing the same example across
+levels would be forcing a school-age scenario onto a PhD-level
+treatment or vice versa.
 
 THE CORE BAR: "no mentor needed" is the actual design target, not a
 slogan — meaning a student with zero access to a teacher, tutor, or
@@ -22,6 +39,9 @@ a much higher bar than "technically explains the topic" — it means
 anticipating the exact place a student gets stuck and addressing it
 BEFORE they ask, not after.
 """
+
+from config import LEVELS
+from diversity_pool import random_diversity_injection
 
 CORE_TEACHING_INSTRUCTION = """
 You are writing concept-teaching content for TryIT, an Indian exam-prep
@@ -67,6 +87,30 @@ or result you have not actually double-checked.
 """
 
 
+def _level_instruction(level: int) -> str:
+    level_desc = LEVELS.get(level, "competitive level")
+    return f"""
+TARGET AUDIENCE — LEVEL {level} ({level_desc}): this explanation is
+being written for THIS specific audience, not a generic student. This
+changes real things, not just tone:
+- Vocabulary: use words this specific age/stage would actually know.
+  Don't use terms a Class 2 student hasn't encountered yet; don't
+  under-explain in a way that insults a PhD-level reader's intelligence.
+- Abstraction level: a school-age explanation should stay concrete and
+  example-driven; a competitive/research-level explanation can and
+  should engage with the underlying structure, edge cases, and
+  connections to other concepts a student at that stage would be
+  expected to already reason with.
+- The India Example itself must fit this audience's real life — a
+  Class 2 example should involve things a 7-year-old actually
+  experiences (sharing sweets, counting siblings); a UPSC Mains/PhD
+  level example can involve more adult, abstract, or professional
+  scenarios.
+This is NOT the same content simplified or complicated — write it
+genuinely FOR this specific audience from the start.
+"""
+
+
 def _exam_tags_for_topic(topic_id: str) -> list:
     """Pulls REAL exam relevance from exam_syllabus_map (built earlier
     this session) rather than guessing or hardcoding exam names. Returns
@@ -77,21 +121,25 @@ def _exam_tags_for_topic(topic_id: str) -> list:
     return fetch_exam_tags_for_topic(topic_id)
 
 
-def build_standard_prompt(topic_id: str, topic_name: str, subject_name: str) -> str:
+def build_standard_prompt(topic_id: str, topic_name: str, subject_name: str, level: int) -> str:
     return f"""{CORE_TEACHING_INSTRUCTION}
+{_level_instruction(level)}
+{random_diversity_injection()}
 
 TOPIC: {topic_name} (subject: {subject_name})
-DEPTH: Standard (~10 minute read) — the main, anchor explanation.
+DEPTH: Standard (~10 minute read) — the main, anchor explanation for
+THIS level's audience specifically.
 
 Write:
 1. "explanation_text": a clear, complete explanation of the concept —
    what it is, the core method/formula (if any), and WHY it works, not
    just what to do mechanically. Include the single most exam-useful
-   fact or shortcut if one genuinely exists for this concept.
-2. "india_example": one vivid, realistic Indian everyday scenario that
-   makes this concept concrete — this is the example a student should
-   still remember weeks later even if they forget the formal
-   definition.
+   fact or shortcut if one genuinely exists for this concept AT THIS
+   LEVEL.
+2. "india_example": one vivid, realistic Indian everyday scenario,
+   appropriate to this specific audience's age/stage, that makes this
+   concept concrete — this is the example a student should still
+   remember weeks later even if they forget the formal definition.
 
 Return ONLY a JSON object:
 {{
@@ -101,9 +149,10 @@ Return ONLY a JSON object:
 """
 
 
-def build_quick_prompt(topic_id: str, topic_name: str, subject_name: str,
+def build_quick_prompt(topic_id: str, topic_name: str, subject_name: str, level: int,
                         standard_explanation: str, standard_example: str) -> str:
     return f"""{CORE_TEACHING_INSTRUCTION}
+{_level_instruction(level)}
 
 OVERRIDE FOR THIS DEPTH SPECIFICALLY: the "mandatory worked example" and
 "no unexplained notation" rules above apply to Standard and Deep Dive,
@@ -118,8 +167,8 @@ DEPTH: Quick (~2 minute read) — a fast pre-exam refresher, NOT a first
 introduction. Assume the student already learned this once; they need
 the core idea back in their head fast, not a full re-teach.
 
-Here is the Standard-depth version already written for this topic, to
-keep consistent with:
+Here is the Standard-depth version already written for this topic AT
+THIS SAME LEVEL, to keep consistent with:
 STANDARD EXPLANATION: {standard_explanation}
 STANDARD INDIA EXAMPLE: {standard_example}
 
@@ -139,28 +188,31 @@ Return ONLY a JSON object:
 """
 
 
-def build_deep_dive_prompt(topic_id: str, topic_name: str, subject_name: str,
+def build_deep_dive_prompt(topic_id: str, topic_name: str, subject_name: str, level: int,
                             standard_explanation: str, standard_example: str) -> str:
     return f"""{CORE_TEACHING_INSTRUCTION}
+{_level_instruction(level)}
 
 TOPIC: {topic_name} (subject: {subject_name})
-DEPTH: Deep Dive (~30 minute read) — full mastery, including the
-edge cases and misconceptions that trip students up in real exams.
+DEPTH: Deep Dive (~30 minute read) — full mastery for THIS level's
+audience, including the edge cases and misconceptions that trip
+students up at this specific stage.
 
-Here is the Standard-depth version already written for this topic —
-EXPAND on this same example, don't invent an unrelated new one:
+Here is the Standard-depth version already written for this topic AT
+THIS SAME LEVEL — EXPAND on this same example, don't invent an
+unrelated new one:
 STANDARD EXPLANATION: {standard_explanation}
 STANDARD INDIA EXAMPLE: {standard_example}
 
 Write:
 1. "explanation_text": the full concept including: the underlying
    reasoning (not just the method), at least one common misconception
-   students have and why it's wrong, and how this concept connects to
-   1-2 related topics a student will see it combined with in real
-   exams.
+   students AT THIS LEVEL have and why it's wrong, and how this concept
+   connects to 1-2 related topics a student at this stage will see it
+   combined with in real exams.
 2. "india_example": EXPAND the same India Example from Standard into a
    richer, multi-step version that walks through a harder variation of
-   the same everyday scenario.
+   the same everyday scenario, still appropriate to this audience.
 
 Return ONLY a JSON object:
 {{

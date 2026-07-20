@@ -140,7 +140,7 @@ def push_concept_content(rows: list) -> int:
             # rule was silently ignored, causing every re-run on an
             # already-generated topic to fail with a 409 instead of
             # cleanly updating.
-            params={"on_conflict": "topic_id,depth"},
+            params={"on_conflict": "topic_id,level,depth"},
             json=batch, timeout=REQUEST_TIMEOUT,
         )
         if r.status_code in (200, 201):
@@ -150,43 +150,52 @@ def push_concept_content(rows: list) -> int:
     return saved
 
 
-def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict:
-    topic_id = topic["topic_id"]
-    topic_name = topic.get("topic_name", topic_id)
-    print(f"\n-> {topic_id}")
+def _parse_difficulty_range(difficulty_range: str) -> list:
+    """'2-7' -> [2,3,4,5,6,7]. Matches exactly the same range already
+    used to gate MCQ question generation for this topic — concept
+    content only ever needs to cover levels the topic actually has
+    questions for."""
+    try:
+        lo, hi = difficulty_range.split("-")
+        return list(range(int(lo), int(hi) + 1))
+    except (ValueError, AttributeError):
+        return [5]  # sane fallback if a topic is somehow missing a range
 
+
+def process_topic_level(topic_id: str, topic_name: str, subject_name: str,
+                         level: int, exam_tags: list, dry_run: bool = False) -> dict:
+    """Generates and verifies one full Standard->Quick->Deep Dive set
+    for ONE level of ONE topic. Called once per valid level within a
+    topic's difficulty_range by process_topic() below."""
     rows = []
 
-    # 1. STANDARD FIRST — the anchor
-    std_prompt = build_standard_prompt(topic_id, topic_name, subject_name)
-    std_result, std_provider = _generate_depth(std_prompt, f"concept-std:{topic_id}")
+    std_prompt = build_standard_prompt(topic_id, topic_name, subject_name, level)
+    std_result, std_provider = _generate_depth(std_prompt, f"concept-std:{topic_id}:L{level}")
     if not std_result or not std_result.get("explanation_text"):
-        print(f"   [{topic_id}] x standard generation failed — skipping this topic entirely (quick/deep_dive need it as anchor)")
+        print(f"   [{topic_id} L{level}] x standard generation failed — skipping this level entirely (quick/deep_dive need it as anchor)")
         return {"generated": 0, "verified": 0, "saved": 0}
 
     std_explanation = std_result["explanation_text"]
     std_example = std_result.get("india_example", "")
 
-    exam_tags = fetch_exam_tags_for_topic(topic_id)
-
     for depth, prompt in [
         ("standard", None),  # already generated above
-        ("quick", build_quick_prompt(topic_id, topic_name, subject_name, std_explanation, std_example)),
-        ("deep_dive", build_deep_dive_prompt(topic_id, topic_name, subject_name, std_explanation, std_example)),
+        ("quick", build_quick_prompt(topic_id, topic_name, subject_name, level, std_explanation, std_example)),
+        ("deep_dive", build_deep_dive_prompt(topic_id, topic_name, subject_name, level, std_explanation, std_example)),
     ]:
         if depth == "standard":
             result, provider = std_result, std_provider
         else:
-            result, provider = _generate_depth(prompt, f"concept-{depth}:{topic_id}")
+            result, provider = _generate_depth(prompt, f"concept-{depth}:{topic_id}:L{level}")
 
         if not result or not result.get("explanation_text"):
-            print(f"   [{topic_id}] x {depth} generation failed")
+            print(f"   [{topic_id} L{level}] x {depth} generation failed")
             continue
 
         explanation_text = result["explanation_text"]
         india_example = result.get("india_example", "")
         passed, score, reason = verify_concept_content(depth, explanation_text, india_example)
-        print(f"   [{topic_id}] {depth}: {'PASS' if passed else 'FAIL'} (score {score}/10) {'' if passed else '- ' + reason}")
+        print(f"   [{topic_id} L{level}] {depth}: {'PASS' if passed else 'FAIL'} (score {score}/10) {'' if passed else '- ' + reason}")
 
         if not passed:
             continue
@@ -194,6 +203,7 @@ def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict
         rows.append({
             "concept_id": f"cc_{uuid.uuid4().hex[:16]}",
             "topic_id": topic_id,
+            "level": level,
             "depth": depth,
             "explanation_text": explanation_text,
             "india_example": india_example,
@@ -207,9 +217,25 @@ def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict
     saved = 0
     if rows and not dry_run:
         saved = push_concept_content(rows)
-        print(f"   [{topic_id}] pushed {saved}/{len(rows)} depths to Supabase")
+        print(f"   [{topic_id} L{level}] pushed {saved}/{len(rows)} depths to Supabase")
 
     return {"generated": 3, "verified": len(rows), "saved": saved}
+
+
+def process_topic(topic: dict, subject_name: str, dry_run: bool = False) -> dict:
+    topic_id = topic["topic_id"]
+    topic_name = topic.get("topic_name", topic_id)
+    levels = _parse_difficulty_range(topic.get("difficulty_range", "5-5"))
+    print(f"\n-> {topic_id} (levels {levels[0]}-{levels[-1]}, {len(levels)} total)")
+
+    exam_tags = fetch_exam_tags_for_topic(topic_id)
+
+    totals = {"generated": 0, "verified": 0, "saved": 0}
+    for level in levels:
+        result = process_topic_level(topic_id, topic_name, subject_name, level, exam_tags, dry_run=dry_run)
+        for k in totals:
+            totals[k] += result[k]
+    return totals
 
 
 def main():
