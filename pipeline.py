@@ -123,7 +123,16 @@ def generate_batch(topic_id: str, level: int, count: int):
 # 32,854 chars mid-array. Splitting into smaller sub-batches and merging
 # the parsed results avoids this without needing to guess a bigger token
 # limit that would just delay the same problem at a slightly larger count.
-DIAGRAM_KINDS_REQUIRING_LLM_OUTPUT = {"geometry_svg", "chart_data", "nonverbal_mirror_svg"}
+DIAGRAM_KINDS_REQUIRING_LLM_OUTPUT = {
+    # original
+    "geometry_svg", "chart_data", "nonverbal_mirror_svg",
+    # physics
+    "free_body_diagram", "circuit_diagram", "ray_diagram", "pv_graph",
+    # chemistry
+    "electron_dot", "periodic_highlight",
+    # biology
+    "biology_labeled_diagram", "process_flow",
+}
 MAX_DIAGRAM_BATCH_SIZE = 2
 
 

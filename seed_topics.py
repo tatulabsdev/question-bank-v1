@@ -202,23 +202,23 @@ SUBJECT_TOPICS = {
     ]),
 
     "physics": ("medium", [
-        ("Mechanics", False, None, False),
-        ("Electricity and Magnetism", False, None, False),
-        ("Optics", False, None, False),
-        ("Modern Physics", False, None, False),
-        ("Thermodynamics", False, None, False),
+        ("Mechanics",                  True,  "free_body_diagram", False),
+        ("Electricity and Magnetism",  True,  "circuit_diagram",   False),
+        ("Optics",                     True,  "ray_diagram",       False),
+        ("Modern Physics",             False, None,                False),
+        ("Thermodynamics",             True,  "pv_graph",          False),
     ]),
     "chemistry": ("medium", [
-        ("Organic Chemistry Basics", False, None, False),
-        ("Inorganic Chemistry Basics", False, None, False),
-        ("Physical Chemistry Basics", False, None, False),
-        ("Periodic Table and Bonding", False, None, False),
+        ("Organic Chemistry Basics",   True,  "electron_dot",        False),
+        ("Inorganic Chemistry Basics", True,  "electron_dot",        False),
+        ("Physical Chemistry Basics",  True,  "pv_graph",            False),
+        ("Periodic Table and Bonding", True,  "periodic_highlight",  False),
     ]),
     "biology": ("medium", [
-        ("Cell Biology and Genetics", False, None, False),
-        ("Human Physiology", False, None, False),
-        ("Plant Physiology", False, None, False),
-        ("Ecology and Environment", False, None, False),
+        ("Cell Biology and Genetics",  True,  "biology_labeled_diagram", False),
+        ("Human Physiology",           True,  "biology_labeled_diagram", False),
+        ("Plant Physiology",           True,  "process_flow",            False),
+        ("Ecology and Environment",    False, None,                      False),
     ]),
     "science_gen": ("medium", [
         ("General Science Facts", False, None, False),
@@ -440,3 +440,4 @@ if __name__ == "__main__":
 
     saved = push_topics(rows)
     print(f"Pushed {saved}/{len(rows)} to Supabase")
+
