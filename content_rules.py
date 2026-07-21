@@ -26,6 +26,40 @@ CRITICAL COPYRIGHT RULES (do not break these):
 """
 
 # ──────────────────────────────────────────────────────────
+# SELF-VERIFICATION — added after real trial data showed that at high
+# difficulty (L9-L10), two independent verifier models frequently
+# computed the SAME corrected number, agreeing the marked answer was
+# wrong or the scenario itself was geometrically/mathematically
+# impossible (e.g. a stated chord longer than the circle's own
+# diameter, a triangle whose sides violate the triangle inequality, an
+# angle condition with no valid real-number solution). Two different
+# models independently arriving at the same correction is strong
+# evidence the generation step itself is making real errors — not that
+# verification is being too strict.
+# ──────────────────────────────────────────────────────────
+SELF_VERIFICATION_INSTRUCTION = """
+BEFORE finalizing each question, actually work through your own
+solution step-by-step as if you were the student, and check:
+1. Does your computed answer EXACTLY match one of the 4 options you
+   wrote? If your real computed value isn't among the options, fix the
+   options or the numbers — never mark an answer "correct" that your
+   own working doesn't actually produce.
+2. Is the scenario physically/mathematically POSSIBLE? Specifically:
+   a triangle's side lengths must satisfy the triangle inequality (the
+   sum of any two sides must exceed the third); a chord can never be
+   longer than the circle's own diameter; any angle you derive must
+   have a valid real-number solution (e.g. never require cos or sin of
+   an angle to exceed 1 or go below -1). If your own numbers create an
+   impossible configuration, change the numbers until the scenario is
+   actually realizable — do not ship a question whose premise cannot
+   physically exist.
+Do this verification silently as part of your own reasoning process —
+it should not appear as visible text in the final question or
+explanation, it is a check you perform on yourself before output.
+"""
+
+
+# ──────────────────────────────────────────────────────────
 # 7-LAYER EXPLANATION SPEC — matches your original brief exactly,
 # including per-wrong-option reasons (this was missing from the old schema)
 # ──────────────────────────────────────────────────────────
