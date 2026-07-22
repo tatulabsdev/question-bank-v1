@@ -44,7 +44,7 @@ from svg_sanitizer import sanitize_question_svgs
 import geometry_engine
 from providers import (
     call_with_failover, rotated_chain, GENERATION_CHAIN, VERIFICATION_CHAIN_1,
-    VERIFICATION_CHAIN_2,
+    VERIFICATION_CHAIN_2, VERIFICATION_CHAIN_HARD,
 )
 from dedup import filter_duplicates
 from quota_tracker import build_today_jobs, progress_report
@@ -297,12 +297,19 @@ explanation quality (2pts), cultural relevance (2pts), uniqueness (2pts).
 """
 
 
-def verify_question(question: dict):
+def verify_question(question: dict, level: int = 5):
     prompt = build_verification_prompt(question)
 
-    text1, provider1 = call_with_failover(prompt, VERIFICATION_CHAIN_1,
-                                   model_override=PROVIDER_MODELS["groq_strong"],
-                                   label="verify1")
+    # For L8-10 hard content: Azure gpt-5 leads verification since free-tier
+    # verifiers showed consistent failures on hard geometry/physics in trials.
+    # For L1-7: standard free-tier chains are sufficient and much cheaper.
+    if level >= 8:
+        text1, provider1 = call_with_failover(prompt, VERIFICATION_CHAIN_HARD,
+                                               label=f"verify1-hard:L{level}")
+    else:
+        text1, provider1 = call_with_failover(prompt, VERIFICATION_CHAIN_1,
+                                               model_override=PROVIDER_MODELS["groq_strong"],
+                                               label="verify1")
     text2, provider2 = call_with_failover(prompt, VERIFICATION_CHAIN_2, label="verify2")
 
     result1 = _parse_verification(text1)
@@ -535,7 +542,7 @@ def process_job(topic_id: str, level: int, count: int, dry_run: bool = False) ->
 
     verified_records = []
     for q in questions:
-        passed, score, needs_review = verify_question(q)
+        passed, score, needs_review = verify_question(q, level=level)
         if needs_review:
             append_pending_review(q, topic_id, level, "verifier_disagreement")
             continue

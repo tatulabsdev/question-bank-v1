@@ -1,0 +1,68 @@
+name: TryIT Question Bank — Auto Generation
+
+on:
+  schedule:
+    # Runs every 6 hours — GitHub Actions hard limit is 6h per job.
+    # Each run checks what's left and continues from where it stopped,
+    # since the pipeline reads live Supabase coverage data on startup.
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # Also triggerable manually from the Actions tab for a one-off run.
+    inputs:
+      max_jobs:
+        description: 'Max jobs this run (leave empty for full queue)'
+        required: false
+        default: ''
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350    # 5m buffer under the 6h GitHub Actions cap
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run generation pipeline
+        env:
+          SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
+          CEREBRAS_API_KEY:    ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY:     ${{ secrets.MISTRAL_API_KEY }}
+          OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPSEEK_API_KEY:    ${{ secrets.DEEPSEEK_API_KEY }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          AZURE_OPENAI_KEY:              ${{ secrets.AZURE_OPENAI_KEY }}
+          AZURE_OPENAI_ENDPOINT:         ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT:       ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+          AZURE_OPENAI_VERIFIER_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_VERIFIER_DEPLOYMENT }}
+        run: |
+          MAX_JOBS="${{ github.event.inputs.max_jobs }}"
+          if [ -n "$MAX_JOBS" ]; then
+            echo "Manual run: max_jobs=$MAX_JOBS"
+            python pipeline.py --max-workers 4 --max-jobs "$MAX_JOBS"
+          else
+            echo "Scheduled run: full queue"
+            python pipeline.py --max-workers 4
+          fi
+
+      - name: Report progress
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python pipeline.py --report
+

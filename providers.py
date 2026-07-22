@@ -104,11 +104,19 @@ def call_openrouter(prompt, model=None):
     key = _env("OPENROUTER_API_KEY")
     if not key:
         return None, "no_key"
-    model = model or PROVIDER_MODELS["openrouter"]
+    # Use openrouter/auto instead of a specific free model ID — the free
+    # model lineup rotates weekly with almost no notice (confirmed July 2026:
+    # meta-llama/llama-3.3-70b-instruct:free and deepseek/deepseek-r1:free
+    # both rotated out of free tier within the same week). The auto-router
+    # picks whatever free model is currently available without us having to
+    # chase the rotating list.
+    model = model or PROVIDER_MODELS.get("openrouter", "openrouter/auto")
     try:
         r = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://tryiteducations.net",
+                     "X-Title": "TryIT Educations"},
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
                   "temperature": 0.7, "max_tokens": 12000},
             timeout=REQUEST_TIMEOUT,
@@ -137,38 +145,36 @@ def call_mistral(prompt, model=None):
 
 
 def call_cohere(prompt, model=None):
-    """Cohere's free trial API key tier — verify current rate limits
-    against Cohere's docs before relying on this at volume, terms shift
-    over time. Uses the v2 chat endpoint."""
-    key = _env("COHERE_API_KEY")
+    """Cohere removed from active rotation — trial key is 1k calls/month
+    and prohibits commercial use. Function kept for reference only,
+    returns no_key so it never gets called in production chains."""
+    return None, "no_key"
+
+
+def call_deepseek(prompt, model=None):
+    """DeepSeek API — requires a small account top-up to activate even
+    though a 5M free token grant exists. Very cheap after activation:
+    $0.14/M input, $0.28/M output for deepseek-chat (V4 Flash)."""
+    key = _env("DEEPSEEK_API_KEY")
     if not key:
         return None, "no_key"
-    model = model or PROVIDER_MODELS.get("cohere", "command-r-plus")
+    model = model or PROVIDER_MODELS.get("deepseek", "deepseek-chat")
     try:
         r = requests.post(
-            "https://api.cohere.com/v2/chat",
+            "https://api.deepseek.com/chat/completions",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
                   "temperature": 0.7, "max_tokens": 12000},
             timeout=REQUEST_TIMEOUT,
         )
-        if r.status_code == 429:
-            return None, "rate_limit"
-        if r.status_code in (401, 403):
-            return None, "auth_error"
-        if r.status_code != 200:
-            return None, f"error:{r.status_code}:{r.text[:150]}"
-        data = r.json()
-        text = data["message"]["content"][0]["text"]
-        return text, "ok"
-    except (requests.RequestException, KeyError, IndexError, json.JSONDecodeError) as e:
+        return _handle_openai_style_response(r)
+    except requests.RequestException as e:
         return None, f"error:{e}"
 
 
 def call_huggingface(prompt, model=None):
-    """HuggingFace's free-tier router endpoint (OpenAI-compatible shape)
-    — verify current free-tier model availability/limits against HF's
-    docs, this also shifts over time."""
+    """HuggingFace free-tier router endpoint — commercial use permitted,
+    rate-limited. Confirmed working July 2026."""
     key = _env("HUGGINGFACE_API_KEY")
     if not key:
         return None, "no_key"
@@ -187,12 +193,9 @@ def call_huggingface(prompt, model=None):
 
 
 def call_azure_openai(prompt, model=None):
-    """Azure OpenAI — deliberately placed LAST in CONCEPT_CHAIN, meant
-    to be used only when every free provider fails, to keep Azure
-    credit usage minimal rather than routine. Requires all three of
-    AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT to
-    be set — verify the exact api-version against your resource's
-    current supported versions if this errors."""
+    """Azure gpt-5-nano — bulk generation. Last resort in GENERATION_CHAIN
+    so free providers handle most load. Uses max_completion_tokens (not
+    max_tokens) which is required by the gpt-5 model family on Azure."""
     key = _env("AZURE_OPENAI_KEY")
     endpoint = _env("AZURE_OPENAI_ENDPOINT").rstrip("/")
     deployment = _env("AZURE_OPENAI_DEPLOYMENT")
@@ -203,7 +206,30 @@ def call_azure_openai(prompt, model=None):
             f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=2024-08-01-preview",
             headers={"api-key": key, "Content-Type": "application/json"},
             json={"messages": [{"role": "user", "content": prompt}],
-                  "temperature": 0.7, "max_tokens": 12000},
+                  "temperature": 0.7, "max_completion_tokens": 12000},
+            timeout=REQUEST_TIMEOUT,
+        )
+        return _handle_openai_style_response(r)
+    except requests.RequestException as e:
+        return None, f"error:{e}"
+
+
+def call_azure_verifier(prompt, model=None):
+    """Azure gpt-5 — reserved specifically for L8-10 verification where
+    free-tier verifiers have shown consistent failures (confirmed through
+    trial runs). Uses a separate deployment from the bulk-generation one
+    so cost is tracked independently. Same max_completion_tokens fix."""
+    key = _env("AZURE_OPENAI_KEY")
+    endpoint = _env("AZURE_OPENAI_ENDPOINT").rstrip("/")
+    deployment = _env("AZURE_OPENAI_VERIFIER_DEPLOYMENT")
+    if not key or not endpoint or not deployment:
+        return None, "no_key"
+    try:
+        r = requests.post(
+            f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=2024-08-01-preview",
+            headers={"api-key": key, "Content-Type": "application/json"},
+            json={"messages": [{"role": "user", "content": prompt}],
+                  "temperature": 0.7, "max_completion_tokens": 12000},
             timeout=REQUEST_TIMEOUT,
         )
         return _handle_openai_style_response(r)
@@ -229,18 +255,19 @@ def _handle_openai_style_response(r):
 # FAILOVER CHAINS — order matters. Generation favors high-volume free
 # providers; verification favors stronger-reasoning models.
 # ──────────────────────────────────────────────────────────
-GENERATION_CHAIN = [call_cerebras, call_groq, call_openrouter, call_mistral]
+GENERATION_CHAIN = [call_cerebras, call_groq, call_openrouter, call_mistral,
+                    call_huggingface, call_deepseek, call_azure_openai]
 VERIFICATION_CHAIN_1 = [call_groq, call_cerebras]          # uses groq_strong model, see call_with_failover
 VERIFICATION_CHAIN_2 = [call_gemini, call_mistral, call_openrouter]
+# L8-10 hard content verification — Azure gpt-5 leads since free-tier
+# verifiers showed consistent failures on hard geometry/physics in trials
+VERIFICATION_CHAIN_HARD = [call_azure_verifier, call_groq, call_gemini]
 TRANSLATION_CHAIN = [call_mistral, call_cerebras, call_groq, call_openrouter]
 
-# Concept-teaching content chain — 6 free providers rotate as the main
-# workhorse (same rotated_chain() spread-load pattern as GENERATION_CHAIN),
-# with Azure deliberately LAST: only invoked if every free provider in
-# the chain fails, keeping Azure credit usage close to zero in normal
-# operation rather than routine per-call usage.
+# Concept-teaching content chain — free providers rotate as main workhorse,
+# Azure last so credits are only used when every free provider fails.
 CONCEPT_CHAIN = [call_cerebras, call_groq, call_gemini, call_mistral,
-                  call_openrouter, call_cohere, call_huggingface, call_azure_openai]
+                 call_openrouter, call_huggingface, call_deepseek, call_azure_openai]
 
 # ──────────────────────────────────────────────────────────
 # CONCURRENT-JOB PROVIDER ROTATION
@@ -305,3 +332,4 @@ def call_with_failover(prompt, chain, model_override=None, label="call"):
             # generic error — one quick retry then move on
             time.sleep(1)
     return None, None
+
